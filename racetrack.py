@@ -6,7 +6,7 @@ import matplotlib.axes as axes
 
 class RaceTrack:
 
-    def __init__(self, filepath : str):
+    def __init__(self, filepath : str, raceline_path: str):
         data = np.loadtxt(filepath, comments="#", delimiter=",")
         self.centerline = data[:, 0:2]
         self.centerline = np.vstack((self.centerline[-1], self.centerline, self.centerline[0]))
@@ -37,6 +37,28 @@ class RaceTrack:
                 self.centerline[1, 0] - self.centerline[0, 0]
             )
         ])
+
+        rl = np.loadtxt(raceline_path, comments="#", delimiter=",")
+        rl = np.asarray(rl)
+
+        if rl.shape[0] != self.centerline.shape[0]:
+            # Sometimes the centerline is longer than the raceline
+            # So interpolate values into the raceline
+            t_old = np.linspace(0, 1, rl.shape[0])
+            t_new = np.linspace(0, 1, self.centerline.shape[0])
+            rl = np.column_stack([
+                np.interp(t_new, t_old, rl[:, 0]),
+                np.interp(t_new, t_old, rl[:, 1])
+            ])
+
+        # Raceline softens curves but is way too close to track boundries for our controller
+        # Soften raceline using weighted average with center line
+        weight_center = 0.4
+        weight_race   = 1 - weight_center
+
+        softened = weight_center * self.centerline + weight_race * rl
+
+        self.raceline = softened
 
         # Matplotlib Plots
         self.code = np.empty(self.centerline.shape[0], dtype=np.uint8)
